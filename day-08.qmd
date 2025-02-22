@@ -1,0 +1,77 @@
+---
+title: "day-08"
+format: html
+editor: visual
+---
+
+#Maya McCain
+#February 22, 2025
+#ESS 330 Daily Exercise 8
+
+#1. Read in the COVID-19 data
+```{r}
+library(tidyverse)
+url = 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties-recent.csv'
+covid = read_csv(url)
+library(dplyr)
+```
+#2. Create a new data.frame using the available state.abb, state.name, state.region objects in base R. Be intentional about creating a primary key to match to the COVID data!
+```{r}
+covid_new = data.frame(region = state.region,
+                state_ID = state.abb,
+                state = state.name)
+```
+
+#3. Join your new data.frame to the raw COVID data. Think about right, inner, left, or full join… 
+```{r}
+joined_covid <- full_join(covid_new, covid, by = "state")
+```
+
+#4. split-apply the joined data to determine the daily, cumulative, cases and deaths for each region
+```{r}
+regional_summary <- joined_covid %>%
+  group_by(region, date) %>%  
+  summarise(
+    daily_cases = sum(cases, na.rm = TRUE),  
+    daily_deaths = sum(deaths, na.rm = TRUE)
+  ) %>%
+  arrange(region, date) %>%  
+  group_by(region) %>%
+  mutate(
+    cumulative_cases = cumsum(daily_cases), 
+    cumulative_deaths = cumsum(daily_deaths)
+  )
+
+head(regional_summary)
+
+```
+
+#5. Pivot your data from wide format to long
+```{r}
+regional_long <- regional_summary %>%
+  pivot_longer(
+    cols = c(daily_cases, daily_deaths, cumulative_cases, cumulative_deaths),  
+    names_to = "metric",   
+    values_to = "value"    
+  )
+
+head(regional_long)
+
+```
+
+#6. Plot your data in a compelling way (setup, layers, labels, facets, themes)
+```{r}
+ggplot()
+cases_deaths_plot <- ggplot(data = regional_long, 
+               aes(x = date, y = value, color = region)) +
+  geom_line() +
+  labs(title = "Cumulative COVID-19 Cases & Deaths by USA Region",
+       x = "Date",
+       y = "Value",
+       color = "Region") +
+  facet_wrap(~metric, scales = "free_y") +
+  theme_minimal()
+print(cases_deaths_plot)
+```
+
+#7. Save the image to your img directory with a good file name and extension!
