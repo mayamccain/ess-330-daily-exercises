@@ -1,0 +1,26 @@
+---
+title: "day-09"
+author: "Maya McCain"
+format: html
+editor: visual
+execute: 
+  echo: true
+---
+#1. Use the help (?) function to learn more about the dataset
+#2. Use vis_dat to check out the data. Does it need cleaning?
+```{r}
+library(tidyverse)
+library(dplyr)
+library(visdat)
+?airquality
+vis_dat(airquality)
+```
+
+#3. Fit a linear model to the cleaned data to predict Ozone from one of the possible predictors of your choosing. Why did you chose thats variable?
+```{r}
+airquality <- airquality %>% 
+  drop_na()
+model <- lm(Ozone ~ Temp, data = airquality)
+summary(model)
+```
+
