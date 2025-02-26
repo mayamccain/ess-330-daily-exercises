@@ -1,8 +1,10 @@
 ---
 title: "day-09"
 author: "Maya McCain"
-format: html
 editor: visual
+format:
+  html: 
+    self-contained: true
 execute: 
   echo: true
 ---
