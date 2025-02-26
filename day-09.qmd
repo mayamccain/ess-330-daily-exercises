@@ -8,6 +8,7 @@ execute:
 ---
 #1. Use the help (?) function to learn more about the dataset
 #2. Use vis_dat to check out the data. Does it need cleaning?
+#This data does not need cleaning because there are no gray NA values shown. 
 ```{r}
 library(tidyverse)
 library(dplyr)
@@ -17,10 +18,40 @@ vis_dat(airquality)
 ```
 
 #3. Fit a linear model to the cleaned data to predict Ozone from one of the possible predictors of your choosing. Why did you chose thats variable?
+#4. Using summary(), Does this seem like a valid model?
+#Yes, this seems like a valid model because it is evaluating the relationship between ozone and temperature. 
 ```{r}
-airquality <- airquality %>% 
+cleaned_airquality <- airquality %>% 
   drop_na()
-model <- lm(Ozone ~ Temp, data = airquality)
+model <- lm(Ozone ~ Temp, data = cleaned_airquality)
 summary(model)
+```
+
+#5. Explain the R2 found in a sentence.
+# The R-squared value is 0.488, therefore 48% of variance in ozone is predictable from the temperature. 
+#6. Use broom::augment to predict the Ozone of the cleaned data
+```{r}
+library(broom)
+ozone_prediction <- augment(model, new_data = cleaned_airquality)
+names(ozone_prediction)
+```
+
+#7. Use ggplot to plot the actual vs predicted Ozone
+
+#Add a red line to show where the actual and predicted values are equal This can be done by plotting a 1:1 line (e.g. intercept 0, slope 1) with geom_abline(intercept = 0, slope = 1, color = "red")
+
+#Add a subtitle to the plot showing the correlation between the actual and predicted values are equal This can be done by plotting a 1:1 line (e.g. intercept 0, slope 1) with
+#paste("Correlation:", round(cor(a$Ozone, a$.fitted),2)) assuming your augmented data object is called a
+```{r}
+ozone_plot <- ggplot(data = ozone_prediction, aes(x = Ozone, y = .fitted)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  geom_abline(intercept = 0, slope = 1, color = "red") +
+  labs(
+    title = "Actual vs Predicted Ozone",
+    subtitle = paste("Correlation:", round(cor(ozone_prediction$Ozone, ozone_prediction$.fitted),2)),
+       x = "Actual Ozone",
+       y = "Predicted Ozone") +
+  theme_minimal()
+print(ozone_plot)
 ```
 
