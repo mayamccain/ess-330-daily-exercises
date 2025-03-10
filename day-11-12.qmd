@@ -1,0 +1,27 @@
+---
+title: "day-11/12"
+author: "Maya McCain"
+format: html
+editor: visual
+format: 
+  html:
+    self-contained: true
+---
+#Part 1: Normality Testing
+
+#Load the airquality dataset in R. What does this dataset represent? Explore its structure using functions like str() and summary().
+```{r}
+data(airquality)
+str(airquality)
+summary(airquality)
+?airquality
+```
+#The airquality dataset represents New York daily air quality measurements from May to September of 1973. This dataset is a data frame with 153 observations of 6 variables. 
+
+#Perform a Shapiro-Wilk normality test on the following variables: Ozone, Temp, Solar.R, and Wind.
+
+#What is the purpose of the Shapiro-Wilk test?
+
+#What are the null and alternative hypotheses for this test?
+
+#Interpret the p-values. Are these variables normally distributed?
