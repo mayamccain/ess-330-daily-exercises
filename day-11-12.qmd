@@ -1,27 +1,152 @@
 ---
 title: "day-11/12"
 author: "Maya McCain"
-format: html
 editor: visual
-format: 
-  html:
+format:
+  html: 
     self-contained: true
+execute: 
+  echo: true
 ---
 #Part 1: Normality Testing
 
 #Load the airquality dataset in R. What does this dataset represent? Explore its structure using functions like str() and summary().
 ```{r}
+library(tidyverse)
+library(dplyr)
+library(visdat)
+library(skimr)
 data(airquality)
 str(airquality)
 summary(airquality)
 ?airquality
+vis_dat(airquality)
+skimr::skim(airquality)
 ```
-#The airquality dataset represents New York daily air quality measurements from May to September of 1973. This dataset is a data frame with 153 observations of 6 variables. 
+#The airquality dataset represents New York daily air quality measurements from May to September of 1973. This dataset is a data frame with 153 observations of 6 variables. There are some missing values from ozone and solar. 
 
 #Perform a Shapiro-Wilk normality test on the following variables: Ozone, Temp, Solar.R, and Wind.
+```{r}
+air <- airquality 
+shapiro.test(air$Ozone)
+shapiro.test(air$Temp)
+shapiro.test(air$Solar.R)
+```
 
 #What is the purpose of the Shapiro-Wilk test?
+#The purpose of the Shapiro-Wilk test is to test normaility of a dataset. It is very sensitive to data that is not normal, so it is good for small datasets. 
 
 #What are the null and alternative hypotheses for this test?
+#The null hypothesis for this test is that the data is normally distributed. The alternative hypothesis is the data is not normally distributed.
 
 #Interpret the p-values. Are these variables normally distributed?
+#For ozone, temp, and solar, the p-value is < 0.05, suggesting that we reject the null hypothesis. This means that each of these variables are not normally distributed. 
+
+
+#Part 2: Data Transformation and Feature Engineering
+
+#Create a new column with case_when tranlating the Months into four seasons (Winter (Nov, Dec, Jan), Spring (Feb, Mar, Apr), Summer (May, Jun, Jul), and Fall (Aug, Sep, Oct)).
+```{r}
+air <- air %>%
+  mutate(Season = case_when(
+    Month %in% c(11, 12, 1) ~ "Winter",
+    Month %in% c(2, 3, 4) ~ "Spring",
+    Month %in% c(5, 6, 7) ~ "Summer",
+    Month %in% c(8, 9, 10) ~ "Fall"
+  ))
+```
+
+
+#Use table to figure out how many observations we have from each season.
+```{r}
+table(air$Season)
+```
+#There are 61 observations from Fall and 92 from Summer.
+
+
+#Part 3: Data Preprocessing
+#Normalize the predictor variables (Temp, Solar.R, Wind, and Season) using a recipe
+```{r}
+library(recipes)
+(recipe_obj <- recipe(Ozone~ 
+                       Temp + Solar.R + 
+                       Wind + Season, 
+                      data = air) |> 
+  step_impute_mean(all_numeric_predictors()) |>
+  step_dummy(all_factor_predictors()) |>
+  step_normalize(all_numeric_predictors()))
+```
+
+#What is the purpose of normalizing data?
+#Normalizing data improves model convergence, prevents feature domination, and enhances interpretability. 
+
+#What function can be used to impute missing values with the mean?
+#step_impute_mean() can be used to handle missing values. 
+
+#prep and bake the data to generate a processed dataset.
+```{r}
+prep_recipe <- prep(recipe_obj, training = air)
+normalized_air <- bake(prep_recipe, new_data = air) |> 
+  drop_na()
+```
+
+#Why is it necessary to both prep() and bake() the recipe?
+#prep() and bake() are both necessary because prep() estimates the parameters for the transforations (essentially calculating the steps) while bake() applies these transformations to the dataset.
+
+
+#Part 4: Building a Linear Regression Model
+
+#Fit a linear model using Ozone as the response variable and all other variables as predictors. Remeber that the . notation can we used to include all variables.
+```{r}
+library(broom)
+
+(model = lm(Ozone ~ ., data = normalized_air))
+glance(model)
+```
+
+#Interpret the model summary output (coefficients, R-squared, p-values) in plain language
+#The coefficients show how each factor affect ozone levels. Temp, solar, and summer increase ozone levels while wind decreases ozone levels. The R-squared value means that 59.6% of the variation in ozone is explained by the predicting variables. The p-value is extremely small (p-val = 4.576782e-21), therefore the relationship between ozone levels and the predicting variables are statistically significant. 
+
+
+#Part 5: Model Diagnostics
+
+#Use broom::augment to suppliment the normalized data.frame with the fitted values and residuals.
+```{r}
+(pred <- augment(model, normalized_air))
+```
+
+#Extract the residuals and visualize their distribution as a histogram and qqplot.
+```{r}
+residuals <- pred$.resid
+hist_plot <- ggplot(pred, aes(x = .resid)) +
+  geom_histogram(binwidth = 2, color = "black", fill = "lightblue", alpha = 0.7) +
+  ggtitle("Histogram of Residuals") +
+  theme_minimal()
+print(hist_plot)
+
+qq_plot <- ggplot(pred, aes(sample = .resid)) +
+  geom_qq() +
+  geom_qq_line() +
+  ggtitle("QQ Plot of Residuals") +
+  theme_minimal()
+print(qq_plot)
+```
+
+#Use ggarange to plot this as one image and interpret what you see in them.
+```{r}
+library(ggplot2)
+library(ggpubr)
+ggarrange(hist_plot, qq_plot, ncol = 2, nrow = 1)
+```
+#The histogram is showing that the data is normalized because there is a bell shaped curve around zero. The qq plot shows how the residuals are distributed. 
+
+#Create a scatter plot of actual vs. predicted values using ggpubr with the following setting:
+```{r}
+ggscatter(pred, x = "Ozone", y = ".fitted",
+          add = "reg.line", conf.int = TRUE,
+          cor.coef = TRUE, cor.method = "spearman",
+          ellipse = TRUE)
+```
+
+#How strong of a model do you think this is?
+#I think this is a relatively strong model because the R corelation is 0.83. There are a few outliers but overall it is a good model.  
