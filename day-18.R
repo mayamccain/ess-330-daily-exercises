@@ -47,7 +47,7 @@ training <- training(split)
 testing <- testing(split)
 folds <- vfold_cv(training, v = 10)
 
-rec <- recipe(season_cases ~ ., data = training) |>
+rec <- recipe(logC ~ ., data = training) |>
   step_rm(state, season_cases) |>
   step_dummy(all_nominal_predictors()) |>
   step_scale(all_numeric_predictors()) |>
@@ -58,7 +58,7 @@ lm_mod <- linear_reg() |>
   set_mode("regression")
 
 rf_mod <- rand_forest() |>
-  set_engine('ranger') |>
+  set_engine('ranger', importance = 'impurity') |>
   set_mode("regression")
 
 rf_mod2 <- rand_forest() |>
