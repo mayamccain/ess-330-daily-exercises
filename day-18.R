@@ -69,11 +69,15 @@ b_mod <- boost_tree() |>
   set_engine('xgboost') |>
   set_mode("regression")
 
+lgbm_model <- boost_tree() |>
+  set_engine("lightgbm") |>
+  set_mode("regression")
+
 nn_mod <- mlp(hidden = 10) |>
   set_engine('nnet') |>
   set_mode("regression")
 
-wf <- workflow_set(list(rec), list(lm_mod, rf_mod, rf_mod2, b_mod, nn_mod)) |>
+wf <- workflow_set(list(rec), list(lm_mod, rf_mod, rf_mod2, b_mod, lgbm_model, nn_mod)) |>
   workflow_map(resamples = folds)
 
 autoplot(wf)
@@ -93,4 +97,58 @@ ggplot(a, aes(x = .pred, y = logC)) +
   theme_linedraw()
 
 vip::vip(b_fit)
+
+# Day 2
+
+?boost_tree
+
+b_model_tuned = boost_tree(trees = tune(),
+                           tree_depth = tune(),
+                           min_n = tune()) |>
+  set_mode("regression") |>
+  set_engine("lightgbm")
+
+wf_tune <- workflow(rec, b_model_tuned)
+
+covid_metric = metric_set(mae, rsq, rmse)
+
+dials <- extract_parameter_set_dials(wf_tune)
+dials$object
+
+my.grid <- dials |>
+  grid_latin_hypercube(size = 20)
+
+ploty::plot_ly(my.grid,
+               x = trees,
+               y = ~min_n,
+               z = ~ tree_depth)
+model_params <- tune_grid(
+  wf_tune,
+  resamples = folds,
+  grid = my.grid,
+  metrics = covid_metric
+)
+
+autoplot(model_params)
+
+show_best(model_params, metrics = "rmse")
+
+hp = select_best(model_params, metric = "mae")
+
+final_wf = finalize_workflow(wf_tune, hp)
+
+last_f <- last_fit(final_wf, split, metrics = covid_metric)
+
+collect_metrics(last_f)
+
+pred = collect_predictions(last_f)
+
+ggplot(pred, aes(x = logC, y = .pred)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_abline(col = 'red') +
+  theme_linedraw()
+
+full_fit <- fit(final_wf, data = state_data)
+
 
