@@ -1,0 +1,170 @@
+---
+title: "Day 21 & 22"
+author: Maya McCain
+format: html
+editor: visual
+self-contained: true
+---
+
+# Day 21
+```{r}
+library(dataRetrieval)
+library(tidyverse)
+library(dplyr)
+library(tidymodels)
+library(zoo)
+library(lubridate)
+library(tsibble)
+library(feasts)
+library(plotly)
+
+# Example: Cache la Poudre River at Mouth (USGS site 06752260)
+poudre_flow <- readNWISdv(siteNumber = "06752260",    # Download data from USGS for site 06752260
+                          parameterCd = "00060",      # Parameter code 00060 = discharge in cfs)
+                          startDate = "2013-01-01",   # Set the start date
+                          endDate = "2023-12-31") |>  # Set the end date
+  renameNWISColumns() |>                              # Rename columns to standard names (e.g., "Flow", "Date")
+  mutate(Date = yearmonth(Date)) |>                   # Convert daily Date values into a year-month format (e.g., "2023 Jan")
+  group_by(Date) |>                                   # Group the data by the new monthly Date
+  summarise(Flow = mean(Flow))                       # Calculate the average daily flow for each month
+```
+
+# Convert to a tsibble
+```{r}
+poud_tbl <- as_tsibble(poudre_flow)
+head(poud_tbl)
+```
+# Plotting the time series
+```{r}
+flow_plot <- ggplot(poudre_flow, aes(x = Date, y = Flow)) +
+  geom_line(color = "darkblue") +
+  labs(title = "Cache la Poudre River Streamflow",
+       x = "Date", y = "Flow (cfs)") +
+  theme_minimal()
+ggplotly(flow_plot)
+```
+
+# Subseries
+```{r}
+gg_subseries(poud_tbl) +
+  labs(title = "Monthly Poudre River Streamflow Patterns", y = "Flow", x = "Year") + 
+  theme_minimal()
+```
+I notice that streamflow is relatively low October through March consistenetly throughout the 10 year period. May and June have significantly higher streamflows than the rest of the months while April, July, August, and September have slightly higher flows than October through March. I also see that there was abnormally high streamflows in September of 2014 which may indicate a flood. Seasons are not specifically defined in this plot, however streamflow is divided up by month. We can assume that there is a season of low flows (September-March) and a season of high flows (April-August). The subseries represents how streamflows during January behaves across the ten year period. This allows us to compare how the months behave over the years. 
+
+# Decompose
+```{r}
+poud_decomp <- stl(poud_tbl, s.window = "periodic") |>
+  plot()
+```
+The seasonal component is most appropriate for Poudre River streamflow data. The plot shows various patterns in flows over a ten year period. The seasonal window depicts streamflow patterns throughout the months of the year, most likely related to snowmelt patterns. Seasonal streamflow has stayed relatively the same in the last ten years. The trend window depicts streamflow levels over the ten year period, most likely related to long term influences such as climate change. Trend streamflows have decreased in the last ten years. 
+
+
+# Day 22
+```{r}
+library(modeltime)
+library(tidymodels)
+library(timetk)
+```
+
+# Modeltime 12 Month Prediction
+```{r}
+poud_pred_tbl <-  tsibble::as_tsibble(poudre_flow) |> 
+  as_tibble() |>
+  mutate(date = as.Date(Date), Date = NULL) 
+
+splits <- time_series_split(poud_pred_tbl, assess = "12 months", cumulative = TRUE)
+
+poud_training <-  training(splits)
+poud_testing  <-  testing(splits)
+```
+
+# Prophet Model
+```{r}
+proph_mod <- arima_reg() |>  set_engine("auto_arima")
+arima_mod <- prophet_reg() |> set_engine("prophet")
+
+mods <- list(
+  fit(proph_mod, Flow ~ date, data = poud_training),
+  fit(arima_mod, Flow ~ date, data = poud_training)
+)
+```
+
+```{r}
+models_tbl <- as_modeltime_table(mods)
+print(models_tbl)
+```
+
+```{r}
+calibration_table <- models_tbl |> 
+  modeltime_calibrate(new_data = poud_testing)
+print(calibration_table)
+```
+
+```{r}
+modeltime_accuracy(calibration_table) |> 
+  arrange(mae)
+```
+
+```{r}
+(forecast <- calibration_table |> 
+  modeltime_forecast(h = "12 months", 
+                     new_data = poud_testing,
+                     actual_data = poud_tbl) )
+```
+```{r}
+plot_modeltime_forecast(forecast)
+```
+```{r}
+refit_tbl <- calibration_table |>
+    modeltime_refit(data = poud_pred_tbl)
+
+refit_tbl |>
+    modeltime_forecast(h = "12 months", actual_data = poud_tbl) |>
+    plot_modeltime_forecast()
+```
+# Data Retrieval
+```{r}
+# Example: Cache la Poudre River at Mouth (USGS site 06752260)
+real_poudre_flow <- readNWISdv(siteNumber = "06752260",    # Download data from USGS for site 06752260
+                          parameterCd = "00060",      # Parameter code 00060 = discharge in cfs)
+                          startDate = "2024-01-01",   # Set the start date
+                          endDate = "2024-12-31") |>  # Set the end date
+  renameNWISColumns() |>                              # Rename columns to standard names (e.g., "Flow", "Date")
+  mutate(month = yearmonth(Date)) |>                   # Convert daily Date values into a year-month format (e.g., "2023 Jan")
+  group_by(month) |>                                   # Group the data by the new monthly Date
+  summarise(real_flow = mean(Flow))                       # Calculate the average daily flow for each month
+```
+
+```{r}
+preds <- forecast %>%
+  filter(.key == "prediction") %>%
+  select(month = .index, predicted = .value)
+
+comparison <- left_join(preds, real_poudre_flow, by = "month") %>%
+  drop_na()
+```
+
+# R-Squared
+```{r}
+rsq_val <- lm(real_flow ~ predicted, data = comparison) %>%
+  glance() %>%
+  pull(r.squared)
+print(rsq_val)
+```
+The R-Squared value between predicted and observed flows is 0.82. The model explains 82% of the variance of the real streamflow in 2024. 
+
+# Predicted vs. Observed Plot
+```{r}
+ggplot(comparison, aes(x = real_flow, y = predicted)) +
+  geom_point(size = 3, color = "blue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40") +
+  labs(
+    title = "Predicted vs Real Monthly Streamflow in 2024",
+    x = "Real Flow (cfs)",
+    y = "Predicted Flow (cfs)") +
+  theme_minimal()
+
+```
+
