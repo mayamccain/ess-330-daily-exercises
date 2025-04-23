@@ -1,0 +1,16 @@
+---
+title: "Day 23"
+format: html
+editor: visual
+---
+
+```{r}
+library(sf)
+library(terra)
+library(mapview)
+```
+```{r}
+sf::sf_extSoftVersion()
+terra::gdal()
+```
+
