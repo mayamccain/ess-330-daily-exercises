@@ -1,0 +1,61 @@
+---
+title: "Day 24"
+format: html
+editor: visual
+---
+
+```{r}
+library(readr)
+library(tidyverse)
+library(sf)
+library(units)
+library(AOI)
+library(gghighlight)
+library(ggrepel)
+library(knitr)
+
+cities <- readr::read_csv("data/simplemaps_uscities_basicv1.90/uscities.csv", show_col_types = FALSE) |>
+  st_as_sf(coords = c("lng", "lat"), crs = 4326)
+```
+
+```{r}
+larimer_county <- aoi_get(state = "CO", county = "Larimer")
+larimer_cities <- st_filter(cities, larimer_county)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot() +
+  geom_sf(data = larimer_county, fill = NA, color = "black") +
+  geom_sf(data = larimer_cities, color = "red", size = 2) +
+  theme_minimal() +
+  labs(title = "Cities in Larimer County, CO")
+```
+
+```{r}
+top3 <- larimer_cities |>
+  arrange(desc(population)) |>
+  slice_head(n = 3)
+```
+
+```{r}
+larimer_cities_map <- ggplot() +
+  geom_sf(data = larimer_county, fill = NA, color = "black") +
+  geom_sf(data = larimer_cities, color = "steelblue", size = 2) +      # all cities
+  geom_sf(data = top3, color = "darkblue", size = 4) +                  # top 3 cities
+  theme_minimal() +
+  labs(title = "Cities with Highest Population in Larimer County, CO") +
+  geom_label_repel(
+    data = top3,
+    aes(label = city, geometry = geometry),
+    stat = "sf_coordinates",
+    size = 3)
+print(larimer_cities_map)
+```
+```{r}
+ggsave("img/larimer_cities_map.png", plot = larimer_cities_map, width = 8, height = 6, dpi = 300)
+
+```
+
+
