@@ -1,0 +1,65 @@
+---
+title: "Day 25"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(units)
+library(AOI)
+library(gghighlight)
+library(ggrepel)
+library(knitr)
+library(rnaturalearth)
+
+rivers <- read_sf("data/majorrivers_0_0/MajorRivers.shp")
+```
+```{r}
+mississippi <- rivers %>% 
+  filter(SYSTEM == "Mississippi")
+counties <- AOI::aoi_get(state = "conus", county = "all")
+
+mississippi_counties <- st_filter(counties, mississippi, .predicate = st_intersects)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = counties, fill = "gray90", color = NA) +
+  geom_sf(data = mississippi_counties, fill = "lightblue", color = "blue") +
+  geom_sf(data = mississippi, color = "darkblue", size = 1) +
+  theme_minimal() +
+  labs(
+    title = "Counties Intersecting the Mississippi River System",
+    caption = "Data: Major Rivers shapefile and AOI package"
+  )
+```
+```{r}
+cities <- readr::read_csv("data/simplemaps_uscities_basicv1.90/uscities.csv", show_col_types = FALSE) |>
+  st_as_sf(coords = c("lng", "lat"), crs = 4326) |>
+  filter(!state_id %in% c("HI", "AK", "PR"))
+
+mississippi_cities <- st_join(cities, mississippi_counties, join = st_within, left = FALSE)
+
+mississippi_pop <- mississippi_cities %>%
+  group_by(county_name) %>%
+  summarise(pop = sum(population, na.rm = TRUE))
+mississippi_counties <- st_join(mississippi_counties, mississippi_pop)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = counties, fill = "gray90", color = NA) +
+  geom_sf(data = mississippi_counties, aes(fill = pop), color = "blue") +
+  geom_sf(data = mississippi, color = "darkblue", size = 1) +
+  scale_fill_viridis_c(option = "viridis", na.value = "white", name = "Population") +
+  theme_minimal() +
+  labs(
+    title = "Counties Intersecting the Mississippi River System"
+  )
+```
+```{r}
+ggsave("img/mississippi_map.png")
+```
+

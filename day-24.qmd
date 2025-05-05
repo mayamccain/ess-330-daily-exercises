@@ -53,9 +53,8 @@ larimer_cities_map <- ggplot() +
     size = 3)
 print(larimer_cities_map)
 ```
+
 ```{r}
 ggsave("img/larimer_cities_map.png", plot = larimer_cities_map, width = 8, height = 6, dpi = 300)
 
 ```
-
-
