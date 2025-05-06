@@ -1,0 +1,37 @@
+---
+title: "Day 26"
+format: html
+editor: visual
+---
+
+```{r}
+library(raster)
+library(terra)
+url <- 'https://raw.githubusercontent.com/mikejohnson51/csu-ess-330/refs/heads/main/resources/foco-elev-cm.tif'
+
+elev <- rast(glue::glue("/vsicurl/{'https://raw.githubusercontent.com/mikejohnson51/csu-ess-330/refs/heads/main/resources/foco-elev-cm.tif'}"))
+```
+
+```{r}
+elev_ft <- elev * 0.0328084
+
+elev_df <- values(elev_ft, dataframe = TRUE)
+```
+
+```{r}
+library(ggpubr)
+library(ggplot2)
+
+ggdensity(elev_df,
+          x = names(elev_df)[1],
+          fill = "lightblue") +
+  labs(
+    x = "Elevation (feet)",
+    y = "Density",
+    title = "Elevation Density Plot"
+  ) +
+  theme_minimal()
+
+ggsave("img/elevation_density_plot.png")
+```
+
